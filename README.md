@@ -5,11 +5,11 @@ full backups, sector preservation, and readback verification. Firmware stays in
 your browser.
 
 **Status:** build, 27 core tests, and 8 browser E2E tests pass. CANBadger v2 hardware
-validation and GitHub Pages deployment are pending.
+validation is pending.
 
 ## Use
 
-Open in desktop Chrome or Edge over HTTPS or localhost. Choose a serial port,
+Open [the flasher](https://fnoelscher.github.io/lpc-web-flash/) in desktop Chrome or Edge. Choose a serial port,
 enter ROM ISP using your board's buttons, then click **ISP mode entered — continue**.
 Repeat the manual boot step for every new session.
 
