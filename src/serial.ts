@@ -109,6 +109,13 @@ export class SerialTransport implements LineIo {
     this.reader?.releaseLock(); this.reader = undefined;
     try { await this.writer?.abort(); } catch { /* Disconnection. */ }
     this.writer?.releaseLock(); this.writer = undefined;
-    if (this.opened) { try { await this.port.close(); } finally { this.opened = false; } }
+    if (this.opened) {
+      try { await this.port.close(); }
+      catch (e) {
+        // A disconnect can close the browser's port before cleanup gets here.
+        // Suppress only the already-closed case, with both streams gone.
+        if (!(e instanceof DOMException && e.name === 'InvalidStateError' && !this.port.readable && !this.port.writable)) throw e;
+      } finally { this.opened = false; }
+    }
   }
 }

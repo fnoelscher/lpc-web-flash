@@ -38,3 +38,19 @@ it('poisons the session after a timeout, so late replies cannot be used for anot
   await expect(t.write('?')).rejects.toThrow('timed out');
   await t.close();
 });
+it('cleans up an already-closed port without hiding other close failures', async () => {
+  const gone = port(), readable = gone.p.readable, writable = gone.p.writable;
+  const t = new SerialTransport(gone.p);
+  await t.open(230400);
+  gone.error(); gone.p.readable = null; gone.p.writable = null;
+  gone.p.close = vi.fn(async () => { throw new DOMException('Port is not open', 'InvalidStateError'); });
+  await expect(t.close()).resolves.toBeUndefined();
+  expect(readable?.locked).toBe(false); expect(writable?.locked).toBe(false);
+  expect(gone.p.close).toHaveBeenCalledOnce();
+  await t.close(); expect(gone.p.close).toHaveBeenCalledOnce();
+
+  const other = port(), broken = new SerialTransport(other.p);
+  await broken.open(230400);
+  other.p.close = vi.fn(async () => { throw new DOMException('Streams remain open', 'InvalidStateError'); });
+  await expect(broken.close()).rejects.toThrow('Streams remain open');
+});

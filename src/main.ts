@@ -23,6 +23,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div id="device" class="device-info" hidden><span class="eyebrow">DEVICE IDENTIFIED</span><h3 id="device-name"></h3><dl><div><dt>Flash</dt><dd id="device-size"></dd></div><div><dt>Part ID</dt><dd id="device-id"></dd></div><div><dt>ROM version bytes</dt><dd id="device-rom"></dd></div></dl></div>
         <button id="disconnect" class="button subtle wide" hidden>Disconnect</button>
         <details class="help"><summary>Connection notes</summary><p>UART0 uses P0.2 (TX) and P0.3 (RX). Cross TX/RX and connect ground. Hold P2.10 low during reset to enter ROM ISP.</p><p>Reset is manual. The app does not drive DTR or RTS. If synchronization fails, select a lower rate and re-enter ISP mode.</p><p>The documented ROM ISP ceiling is 230400 baud.</p></details>
+        <section class="flash-guide" aria-labelledby="guide-heading"><h3 id="guide-heading">Flashing steps</h3><ol>
+          <li>Choose a port. Enter ISP with your board’s buttons, then continue.</li>
+          <li>Back up if readable, then load a BIN or HEX.</li>
+          <li>Review the flash plan. Enable checksum repair if prompted.</li>
+          <li>Click <strong>Flash and verify</strong>. Keep power connected until it finishes.</li>
+          <li>After <strong>Flash complete</strong>, disconnect and reset the board to run.</li>
+        </ol></section>
       </aside>
       <section class="panel firmware-panel">
         <div class="panel-heading"><span class="step">02</span><h2>Firmware</h2><span class="local-badge">Local files only</span></div>
