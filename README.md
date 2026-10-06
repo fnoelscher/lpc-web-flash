@@ -41,11 +41,7 @@ npm run dev
 Development URL: `http://127.0.0.1:5173/lpc-web-flash/`.
 Browser tests use a simulated device; hardware testing remains separate.
 
-## Repository and deployment
-
-Never commit firmware, backups, captures, or generated binaries. Never create tags.
-Use short commit messages. `npm ci` installs firmware checks for commits and pushes;
-CI also checks source and Git history. Keep device files outside the repository.
+## Deployment
 
 For GitHub Pages, select **GitHub Actions** in **Settings → Pages**. The workflow
 tests and deploys `main` to `https://fnoelscher.github.io/lpc-web-flash/`.
