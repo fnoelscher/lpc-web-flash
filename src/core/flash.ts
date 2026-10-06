@@ -1,5 +1,6 @@
 import { hex, type Device, type Sector } from './devices';
 import { imageByte, type Firmware } from './image';
+import { CRP_ADDRESS, protectionName, protectionWords, withProtection, type ProtectionLevel } from './protection';
 
 export interface FlashTarget {
   readFlash(address: number, length: number): Promise<Uint8Array>;
@@ -7,7 +8,7 @@ export interface FlashTarget {
   programBlock(address: number, data: Uint8Array): Promise<void>;
 }
 export interface PlannedSector { sector: Sector; original: Uint8Array; desired: Uint8Array; changed: boolean }
-export interface FlashPlan { device: Device; image: Firmware; sectors: PlannedSector[]; changedBytes: number }
+export interface FlashPlan { device: Device; image: Firmware; sectors: PlannedSector[]; changedBytes: number; protection?: ProtectionLevel }
 export interface Progress { phase: string; done: number; total: number }
 export interface Control { cancelled: boolean; progress: (progress: Progress) => void }
 export class Cancelled extends Error { constructor() { super('Operation cancelled.'); } }
@@ -32,11 +33,18 @@ export async function readRange(target: FlashTarget, address: number, size: numb
 }
 
 const blockedProtection = new Set([0x12345678, 0x87654321, 0x43218765, 0x4e697370]);
+export function plannedProtection(plan: FlashPlan) {
+  const zero = plan.sectors.find(s => s.sector.index === 0);
+  return zero ? protectionName(new DataView(zero.desired.buffer, zero.desired.byteOffset, zero.desired.byteLength).getUint32(CRP_ADDRESS, true)) : undefined;
+}
+export function activatesProtection(plan: FlashPlan) { return ['CRP1', 'CRP2'].includes(plannedProtection(plan) ?? ''); }
 function validateSectorZero(plan: FlashPlan) {
   const zero = plan.sectors.find(s => s.sector.index === 0);
   if (!zero) return;
   const view = new DataView(zero.desired.buffer, zero.desired.byteOffset, zero.desired.byteLength);
-  if (blockedProtection.has(view.getUint32(0x2fc, true))) throw new Error('Image would enable read protection or disable ISP at 0x000002FC. Flashing is blocked.');
+  const word = view.getUint32(CRP_ADDRESS, true);
+  if (plan.protection && (!plan.device.supportsCrp || protectionWords[plan.protection] !== word)) throw new Error('Protection selection does not match the plan or this device.');
+  if (blockedProtection.has(word) && (!plan.protection || word === 0x43218765 || word === 0x4e697370)) throw new Error('Image would enable read protection or disable ISP at 0x000002FC. Select CRP1 or CRP2 explicitly to allow recoverable protection; CRP3 and ISP-disable patterns are blocked.');
   const touchesVectors = plan.image.segments.some(s => s.address < 32);
   if (!touchesVectors) return;
   let sum = 0;
@@ -47,7 +55,11 @@ function validateSectorZero(plan: FlashPlan) {
   if (!validStack || stack % 8 || !(reset & 1) || (reset & ~1) >= plan.device.flashSize) throw new Error('Invalid initial stack pointer or reset vector. Expected a Cortex-M application for this device.');
 }
 
-export async function prepareFlash(target: FlashTarget, device: Device, image: Firmware, control: Control): Promise<FlashPlan> {
+export async function prepareFlash(target: FlashTarget, device: Device, image: Firmware, control: Control, protection?: ProtectionLevel): Promise<FlashPlan> {
+  if (protection) {
+    if (!device.supportsCrp) throw new Error('This device does not support code read protection.');
+    image = withProtection(image, protection);
+  }
   const sectors: PlannedSector[] = [];
   let changedBytes = 0;
   for (const sector of affectedSectors(image, device)) {
@@ -63,7 +75,7 @@ export async function prepareFlash(target: FlashTarget, device: Device, image: F
     changedBytes += changes;
     sectors.push({ sector, original, desired, changed: changes > 0 });
   }
-  const plan = { device, image, sectors, changedBytes };
+  const plan = { device, image, sectors, changedBytes, protection };
   validateSectorZero(plan);
   checkCancel(control);
   return plan;
@@ -72,16 +84,22 @@ export async function prepareFlash(target: FlashTarget, device: Device, image: F
 export async function executeFlash(target: FlashTarget, plan: FlashPlan, control: Control): Promise<number> {
   validateSectorZero(plan);
   const changed = plan.sectors.filter(s => s.changed);
+  // Write protection only after all other affected sectors have been verified.
+  if (activatesProtection(plan)) changed.sort((a, b) => (a.sector.index === 0 ? 1 : 0) - (b.sector.index === 0 ? 1 : 0));
   let completed = 0;
   for (const { sector, desired } of changed) {
     checkCancel(control);
     // Once erase starts, finish this entire sector, including preserved bytes and readback.
     control.progress({ phase: `Erasing sector ${sector.index}`, done: completed, total: changed.length });
     await target.eraseSector(sector.index);
-    for (let offset = 0; offset < sector.size; offset += 1024) {
+    const offsets = Array.from({ length: sector.size / 1024 }, (_, i) => i * 1024);
+    if (sector.index === 0 && activatesProtection(plan)) offsets.push(offsets.shift()!);
+    let written = 0;
+    for (const offset of offsets) {
       const block = desired.subarray(offset, offset + 1024);
       if (!block.every(byte => byte === 255)) await target.programBlock(sector.start + offset, block);
-      control.progress({ phase: `Writing sector ${sector.index}`, done: completed + 0.7 * (offset + 1024) / sector.size, total: changed.length });
+      written += 1024;
+      control.progress({ phase: `Writing sector ${sector.index}`, done: completed + 0.7 * written / sector.size, total: changed.length });
     }
     for (let offset = 0; offset < sector.size; offset += 4096) {
       const actual = await target.readFlash(sector.start + offset, 4096);

@@ -4,8 +4,7 @@ Browser-based Web Serial flasher for NXP LPC175x/176x. Supports BIN and Intel HE
 full backups, sector preservation, and readback verification. Firmware stays in
 your browser.
 
-**Status:** build, 27 core tests, and 8 browser E2E tests pass. CANBadger v2 hardware
-validation is pending.
+- warning: use at your own risk -
 
 ## Use
 
@@ -16,8 +15,12 @@ Repeat the manual boot step for every new session.
 Default baud rate is **230400**. Set the crystal frequency to your board's value
 (default: 12000 kHz). Back up the device, load an image, review the flash plan,
 then flash and verify. BIN supports an offset; HEX uses absolute addresses.
-Vector-checksum repair is optional. Images enabling read protection or disabling
-ISP are blocked. Keep power connected during flashing.
+Vector-checksum repair is optional. Under **Code read protection & chip erase**,
+select Disabled, CRP1 or CRP2, then review and confirm the change. This can also
+override the protection word in a firmware image. CRP3 and ISP-disable patterns
+are blocked by default; CRP3 cannot be recovered with ROM ISP chip erase.
+**Chip erase permanently deletes all flash** and removes CRP1/2 after a power
+cycle. Re-enter ISP manually before programming. Keep power connected during writes.
 
 ## Development
 

@@ -3,6 +3,8 @@ import { Rom } from '../support/simulator';
 import { devices } from '../../src/core/devices';
 import { parseBin, parseHex, repairVectorChecksum } from '../../src/core/image';
 import { Cancelled, executeFlash, prepareFlash, recoveryHex, verifyImage, type Control, type FlashTarget } from '../../src/core/flash';
+import { imageByte } from '../../src/core/image';
+import { withProtection } from '../../src/core/protection';
 
 const device = devices[0]!;
 const control = (): Control => ({ cancelled: false, progress: () => {} });
@@ -79,4 +81,42 @@ describe('preserving flash transactions', () => {
     await expect(executeFlash(io, plan, c)).rejects.toThrow('0x00001001');
     expect(events.filter(e => e.startsWith('E'))).toEqual(['E 1']);
   });
+});
+it.each(['crp1', 'crp2', 'disabled'] as const)('changes only the protection word to %s and preserves sector zero', async level => {
+  const { flash, io, events } = target(), before = flash.slice();
+  const plan = await prepareFlash(io, device, { name: 'Protection', size: 0, segments: [] }, control(), level);
+  expect(plan.sectors.map(s => s.sector.index)).toEqual([0]);
+  expect(plan.changedBytes).toBe(level === 'disabled' ? 0 : 4);
+  await executeFlash(io, plan, control());
+  new DataView(before.buffer).setUint32(0x2fc, level === 'crp1' ? 0x12345678 : level === 'crp2' ? 0x87654321 : 0xffffffff, true);
+  expect(flash).toEqual(before);
+  if (level !== 'disabled') expect(events.filter(e => e.startsWith('C')).at(-1)).toBe('C 0');
+});
+it('writes protection last and leaves sector zero untouched if earlier sectors fail', async () => {
+  const { flash, io, events } = target(), before = flash.slice(0, 4096);
+  const plan = await prepareFlash(io, device, parseBin('patch', new Uint8Array([33]), 4096), control(), 'crp2');
+  const program = io.programBlock;
+  io.programBlock = async (address, bytes) => { await program(address, bytes); flash[address + 1]! ^= 1; };
+  await expect(executeFlash(io, plan, control())).rejects.toThrow('Verification failed');
+  expect(events.filter(e => e.startsWith('E'))).toEqual(['E 1']);
+  expect(flash.slice(0, 4096)).toEqual(before);
+  const good = target();
+  await executeFlash(good.io, await prepareFlash(good.io, device, parseBin('patch', new Uint8Array([33]), 4096), control(), 'crp1'), control());
+  expect(good.events.filter(e => e.startsWith('E'))).toEqual(['E 1', 'E 0']);
+  expect(good.events.filter(e => e.startsWith('C')).at(-1)).toBe('C 0');
+});
+it('overrides overlapping sparse image words without changing other bytes or the source', () => {
+  const image = { name: 'Sparse', size: 8, segments: [{ address: 0x2fa, data: new Uint8Array([1, 2, 3, 4]) }, { address: 0x2fe, data: new Uint8Array([5, 6, 7, 8]) }] };
+  const changed = withProtection(image, 'crp1');
+  expect(Array.from({ length: 8 }, (_, i) => imageByte(changed, 0x2fa + i))).toEqual([1, 2, 0x78, 0x56, 0x34, 0x12, 7, 8]);
+  expect(image.segments[0]!.data).toEqual(new Uint8Array([1, 2, 3, 4]));
+  expect(changed.size).toBe(8);
+});
+it('rejects unsupported chips and revalidates protection plans before erase', async () => {
+  const { io, events } = target();
+  await expect(prepareFlash(io, devices.find(d => d.id === 0x25001110)!, { name: 'Protection', size: 0, segments: [] }, control(), 'crp1')).rejects.toThrow('does not support');
+  const plan = await prepareFlash(io, device, { name: 'Protection', size: 0, segments: [] }, control(), 'crp1');
+  new DataView(plan.sectors[0]!.desired.buffer).setUint32(0x2fc, 0x43218765, true);
+  await expect(executeFlash(io, plan, control())).rejects.toThrow('does not match');
+  expect(events.some(e => e.startsWith('E'))).toBe(false);
 });
