@@ -4,6 +4,8 @@ Browser-based Web Serial flasher for NXP LPC175x/176x. Supports BIN and Intel HE
 full backups, sector preservation, and readback verification. Firmware stays in
 your browser.
 
+Verified using the [CANBadger V2](https://github.com/NoelscherConsulting/CANBadger-v2-Firmware).
+
 - warning: use at your own risk -
 
 ## Use
