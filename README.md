@@ -4,8 +4,8 @@ Browser-based Web Serial flasher for NXP LPC175x/176x. Supports BIN and Intel HE
 full backups, sector preservation, and readback verification. Firmware stays in
 your browser.
 
-**Status:** build and 27 automated tests pass. Browser E2E, CANBadger v2 hardware
-validation, and GitHub Pages deployment are pending.
+**Status:** build, 27 core tests, and 8 browser E2E tests pass. CANBadger v2 hardware
+validation and GitHub Pages deployment are pending.
 
 ## Use
 

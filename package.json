@@ -1,0 +1,29 @@
+{
+  "name": "lpc-web-flash",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "python3 tools/build_helper.py && vite --host 127.0.0.1",
+    "build": "python3 tools/build_helper.py && tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "python3 tools/build_helper.py && vitest run && node --test tools/source-policy.test.mjs",
+    "e2e": "playwright test",
+    "check": "npm run build && npm test && npm run e2e",
+    "helper:check": "python3 tools/build_helper.py --check",
+    "hooks": "node tools/install-hooks.mjs",
+    "prepare": "node tools/install-hooks.mjs",
+    "check:source": "node tools/check-source.mjs --staged && node tools/check-source.mjs --history"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.19.20",
+    "typescript": "5.9.3",
+    "vite": "8.3.3",
+    "vitest": "5.0.3"
+  }
+}
