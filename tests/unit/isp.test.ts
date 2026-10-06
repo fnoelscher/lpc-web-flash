@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { IspClient, RAM } from '../../src/core/isp';
+import { IspClient, RAM, FLASH_MAP_RESULT } from '../../src/core/isp';
 import { Rom, type SimOptions } from '../support/simulator';
 
 export async function setup(options: SimOptions = {}) {
@@ -16,8 +16,16 @@ it('identifies the chip and confirms mapping before exposing flash vectors', asy
   expect(await client.readFlash(0, 32)).toEqual(rom.flash.slice(0, 32));
   expect(rom.mapped).toBe(true);
   expect(rom.commands).toContain(`G ${RAM} T`);
-  expect(rom.commands).toContain('R 1074774080 4');
+  expect(rom.commands).toContain(`R ${FLASH_MAP_RESULT} 4`);
+  expect(rom.commands).not.toContain('R 1074774080 4');
   expect(rom.erases).toHaveLength(0);
+});
+it('rejects peripheral reads like the physical ROM and keeps memory reads in sync', async () => {
+  const { client, rom, queue } = await setup();
+  await expect(client.readMemory(0x400fc040, 4)).rejects.toThrow('Address not mapped (14)');
+  expect(queue).toEqual([]);
+  expect(await client.readFlash(0, 32)).toEqual(rom.flash.slice(0, 32));
+  expect(queue).toEqual([]);
 });
 it('fails closed for unknown devices and unsuccessful mapping', async () => {
   const unknown = await setup({ partId: 123 });

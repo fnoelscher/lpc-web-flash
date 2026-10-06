@@ -113,12 +113,18 @@ export class Rom {
       case 'N': this.reply(0, 1, 2, 3, 4); return;
       case 'U': this.unlocked = a === 23130; this.reply(this.unlocked ? 0 : 16); return;
       case 'W': this.upload = { address: a, length: b, done: 0, group: [], lines: 0 }; this.reply(0); return;
-      case 'G': if (!this.unlocked) { this.reply(15); return; } this.mapped = !this.options.mappingFails; this.reply(0); return;
+      case 'G': {
+        if (!this.unlocked) { this.reply(15); return; }
+        this.mapped = !this.options.mappingFails;
+        new DataView(this.ram.buffer).setUint32(0x240, this.mapped ? 1 : 0, true);
+        this.reply(0); return;
+      }
       case 'R': {
         if (this.options.readFailsAt !== undefined && a <= this.options.readFailsAt && a + b > this.options.readFailsAt) { this.reply(19); return; }
         let bytes: Uint8Array;
-        if (a === 0x400fc040) bytes = new Uint8Array([this.mapped ? 1 : 0, 0, 0, 0]);
-        else if (a >= 0x10000000) bytes = this.ram.slice(a - 0x10000000, a - 0x10000000 + b);
+        // Match the real ROM: peripheral registers cannot be read through ISP R.
+        if (a >= 0x10000000 && a + b <= 0x10000000 + this.ram.length) bytes = this.ram.slice(a - 0x10000000, a - 0x10000000 + b);
+        else if (a >= this.flashSize()) { this.reply(14); return; }
         else { bytes = this.flash.slice(a, a + b); if (!this.mapped && a < 512) bytes.fill(0xa5, 0, Math.min(512 - a, b)); }
         this.download = { bytes, offset: 0 }; this.reply(0); this.sendGroup(); return;
       }

@@ -30,7 +30,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div class="image-options"><div><label for="offset">BIN start address</label><input id="offset" value="0x00000000" spellcheck="false" autocomplete="off" /><p class="field-note">HEX files use their own addresses.</p></div><label class="checkbox-label"><input id="repair" type="checkbox" /><span>Repair vector checksum<small>Only for images containing vectors at address 0.</small></span></label></div>
         <div id="image-info" class="image-info" hidden><div><span class="eyebrow">IMAGE RANGE</span><p id="image-range"></p></div><div><span class="eyebrow">SHA-256</span><p id="image-hash" class="hash"></p></div></div>
         <div class="action-row"><button id="prepare" class="button primary" disabled>Review flash plan <span>→</span></button><button id="verify" class="button secondary" disabled>Verify image</button><button id="backup" class="button secondary" disabled>Back up device</button></div>
-        <p class="field-note">Bytes outside your image are preserved. Every rewritten sector is read back and verified.</p>
+        <p class="field-note">First review the flash plan, then click Flash and verify to write. Bytes outside your image are preserved. Every rewritten sector is read back and verified.</p>
         <details class="maintenance"><summary>Code read protection &amp; chip erase</summary>
           <p id="protection-status" class="field-note">Connect a device to check protection.</p>
           <label for="protection">Code read protection</label><select id="protection"><option value="image">Use image setting · CRP blocked</option><option value="disabled">Disabled</option><option value="crp1">CRP1 · full erase to remove</option><option value="crp2">CRP2 · full erase to remove</option></select>
@@ -131,7 +131,7 @@ async function operation(task: (control: Control) => Promise<void>) {
       identity!.protection = 'Read protected (level unknown)';
       el('protection-status').textContent = 'Read protected: backup, verification and preserving writes are unavailable. Chip erase can recover CRP1/2.';
       status('Code read protection prevents flash access. Use chip erase to remove CRP1/2 and all firmware.', true);
-    } else { status(`${e instanceof Error ? e.message : String(e)} ${powerCycleRequired ? 'Power-cycle the board, then enter ISP mode again.' : 'Enter ISP mode again before reconnecting.'}`, true); await closeConnection(); }
+    } else { status(`${e instanceof Error ? e.message : String(e)} ${powerCycleRequired ? 'Power-cycle the board, then enter ISP mode again using its buttons.' : 'Use your board’s buttons to re-enter ISP mode before clicking continue again.'}`, true); await closeConnection(); }
     plan = undefined;
   } finally { busy = false; control = undefined; writing = false; erasing = false; el('progress').hidden = true; update(); }
 }
@@ -163,7 +163,7 @@ async function parseSelectedImage() {
     const digest = await crypto.subtle.digest('SHA-256', fileBytes.slice().buffer);
     el('image-hash').textContent = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     el('image-info').hidden = false;
-    status(input('repair').checked ? 'Image loaded. Vector checksum repair is enabled; the file hash describes the original file.' : 'Image loaded. Connect your device to review the flash plan.');
+    status(input('repair').checked ? 'Image loaded. Vector checksum repair is enabled; the file hash describes the original file.' : connected ? 'Image loaded. Review the flash plan, then click Flash and verify to write.' : 'Image loaded. Connect your device, review the flash plan, then click Flash and verify to write.');
   } catch (e) { el('image-info').hidden = true; status(e instanceof Error ? e.message : String(e), true); }
   update();
 }
@@ -224,7 +224,7 @@ button('prepare').onclick = () => operation(async c => {
   plan = undefined; recovery = undefined;
   const next = await prepareFlash(client!, identity!.device!, image!, c, selectedProtection());
   plan = next; recovery = recoveryHex(next); renderPlan(next);
-  status(next.changedBytes ? 'Flash plan ready. Save the sector recovery image, then flash when ready.' : 'Image already matches. No changes are required.');
+  status(next.changedBytes ? 'Flash plan ready. Save the sector recovery image, then click Flash and verify to write.' : 'Image already matches. No changes are required.');
 });
 button('flash').onclick = () => operation(async c => {
   const current = plan;

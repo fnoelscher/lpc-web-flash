@@ -70,7 +70,7 @@ export class SerialTransport implements LineIo {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending = undefined;
-        const error = new Error('Serial response timed out. Check the baud rate and enter ISP mode again.');
+        const error = new Error('Serial response timed out.');
         this.fail(error); reject(error);
       }, timeout);
       this.pending = {

@@ -5,7 +5,8 @@ import { FLASH_MAP_HELPER } from '../generated/flash-map';
 import { CRP_ADDRESS, protectionName } from './protection';
 
 export const RAM = 0x10000200;
-const MEMMAP = 0x400fc040;
+// tools/flash-map.S stores its MEMMAP readback at this cleared payload offset.
+export const FLASH_MAP_RESULT = RAM + 64;
 const errors = ['Success', 'Invalid command', 'Source address error', 'Destination address error', 'Source not mapped', 'Destination not mapped', 'Count error', 'Invalid sector', 'Sector not blank', 'Sector not prepared', 'Compare error', 'Busy', 'Parameter error', 'Address error', 'Address not mapped', 'Command locked', 'Invalid unlock code', 'Invalid baud rate', 'Invalid stop bit', 'Code read protection enabled'];
 export class IspError extends Error {
   constructor(public commandName: string, public code: number) { super(`${commandName}: ${errors[code] ?? 'Unknown status'} (${code}).`); }
@@ -119,7 +120,7 @@ export class IspClient {
     await this.command(`G ${RAM} T`);
     await this.command('J');
     if (await this.number() !== this.identity.id) throw new Error('Device identity changed after the RAM helper.');
-    const data = await this.readMemory(MEMMAP, 4);
+    const data = await this.readMemory(FLASH_MAP_RESULT, 4);
     if ((new DataView(data.buffer).getUint32(0, true) & 1) !== 1) throw new Error('Flash mapping could not be confirmed. Backup and flashing are disabled.');
     this.mapped = true;
     this.log('Flash mapping and return to ISP confirmed.');
